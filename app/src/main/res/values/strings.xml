@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Makokolorize</string>
+    <string name="select_photo">Select Photo</string>
+    <string name="download_model">Download Model (934 MB)</string>
+    <string name="begin_colorization">Begin Colorization</string>
+    <string name="save">Save</string>
+    <string name="back">Back</string>
+    <string name="confirm">Confirm</string>
+    <string name="cancel">Cancel</string>
+    <string name="original">Original</string>
+    <string name="colorized">Colorized</string>
+    <string name="retry">Retry</string>
+    <string name="download_warning_note">Note: the file sizes for AI models are quite large. Please check and ensure that your device has adequate space to download this AI model.</string>
+</resources>
