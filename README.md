@@ -218,9 +218,6 @@ The DDColor model is based on research from Alibaba's DAMO Academy and published
 - [Jetpack Compose](https://developer.android.com/compose) - UI framework
 - [Hilt](https://dagger.dev/hilt/) - Dependency injection
 
-**Authors:**
-- Rico Luzi (Rekluz Labs) - Android implementation
-
 ## Citation
 
 If you use DDColor in your research, please cite:
