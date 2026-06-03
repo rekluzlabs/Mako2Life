@@ -16,9 +16,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.rekluzlabs.makokolorize.domain.RunConfig
 import com.rekluzlabs.makokolorize.ui.screens.MainScreen
 import com.rekluzlabs.makokolorize.ui.screens.PickerScreen
 import com.rekluzlabs.makokolorize.ui.screens.ResultScreen
+import com.rekluzlabs.makokolorize.ui.screens.SettingsScreen
 import com.rekluzlabs.makokolorize.ui.screens.SplashScreen
 import com.rekluzlabs.makokolorize.ui.theme.Mako_colorizeTheme
 
@@ -39,8 +41,9 @@ class MainActivity : ComponentActivity() {
 sealed class AppScreen {
     data object Splash : AppScreen()
     data object Picker : AppScreen()
-    data class Main(val imageUri: Uri) : AppScreen()
-    data class Result(val imageUri: Uri) : AppScreen()
+    data object Settings : AppScreen()
+    data class Main(val imageUri: Uri, val runConfig: RunConfig = RunConfig()) : AppScreen()
+    data class Result(val imageUri: Uri, val runConfig: RunConfig = RunConfig()) : AppScreen()
 }
 
 @Composable
@@ -52,6 +55,7 @@ fun AppNavigation() {
         currentScreen = when (currentScreen) {
             is AppScreen.Main -> AppScreen.Picker
             is AppScreen.Result -> AppScreen.Picker
+            is AppScreen.Settings -> AppScreen.Picker
             else -> AppScreen.Splash
         }
     }
@@ -69,15 +73,24 @@ fun AppNavigation() {
                 PickerScreen(
                     onImageSelected = { uri ->
                         currentScreen = AppScreen.Main(uri)
+                    },
+                    onNavigateToSettings = {
+                        currentScreen = AppScreen.Settings
                     }
+                )
+            }
+
+            is AppScreen.Settings -> {
+                SettingsScreen(
+                    onBack = { currentScreen = AppScreen.Picker }
                 )
             }
 
             is AppScreen.Main -> {
                 MainScreen(
                     imageUri = screen.imageUri,
-                    onResultReady = {
-                        currentScreen = AppScreen.Result(screen.imageUri)
+                    onResultReady = { config ->
+                        currentScreen = AppScreen.Result(screen.imageUri, config)
                     },
                     onBack = { currentScreen = AppScreen.Picker }
                 )
@@ -86,7 +99,11 @@ fun AppNavigation() {
             is AppScreen.Result -> {
                 ResultScreen(
                     originalUri = screen.imageUri,
-                    onBack = { currentScreen = AppScreen.Picker }
+                    runConfig = screen.runConfig,
+                    onBack = { currentScreen = AppScreen.Picker },
+                    onReRun = { config ->
+                        currentScreen = AppScreen.Main(screen.imageUri, config)
+                    }
                 )
             }
         }

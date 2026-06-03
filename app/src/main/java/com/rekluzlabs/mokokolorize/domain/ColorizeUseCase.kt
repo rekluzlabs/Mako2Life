@@ -70,8 +70,13 @@ class ColorizeUseCase(context: Context) {
             val shape = tensorInfo.shape
 
             if (shape.size >= 4) {
-                modelInputChannels = shape[1].toInt()
-                modelInputSize = shape[2].toInt()
+                val c = shape[1].toInt()
+                if (c in 1..3) modelInputChannels = c
+                else Log.w("ColorizeUseCase", "Unexpected input channels: $c, keeping default $modelInputChannels")
+
+                val s = shape[2].toInt()
+                if (s in 32..2048) modelInputSize = s
+                else Log.w("ColorizeUseCase", "Unexpected input size: $s (dynamic?), keeping default $modelInputSize")
             }
 
             val outputInfo = session!!.outputInfo
@@ -79,13 +84,17 @@ class ColorizeUseCase(context: Context) {
             val outputTensorInfo = firstOutput.info as TensorInfo
             val outputShape = outputTensorInfo.shape
             if (outputShape.size >= 4) {
-                modelOutputChannels = outputShape[1].toInt()
+                val c = outputShape[1].toInt()
+                if (c in 1..3) modelOutputChannels = c
+                else Log.w("ColorizeUseCase", "Unexpected output channels: $c, keeping default $modelOutputChannels")
             }
 
             Log.d("ColorizeUseCase", "Model loaded. Input: ${shape.contentToString()}, Output: ${outputShape.contentToString()}")
             Log.d("ColorizeUseCase", "Using input size=$modelInputSize, inputChannels=$modelInputChannels, outputChannels=$modelOutputChannels")
         } catch (e: Exception) {
             Log.e("ColorizeUseCase", "Failed to load model", e)
+            session?.close()
+            session = null
             throw e
         }
     }
@@ -94,7 +103,11 @@ class ColorizeUseCase(context: Context) {
         val s = session ?: throw IllegalStateException("Model not loaded")
         val env = OrtEnvironment.getEnvironment()
 
-        val inputSize = modelInputSize
+        var inputSize = modelInputSize
+        if (inputSize <= 0 || inputSize > 2048) {
+            Log.w("ColorizeUseCase", "Invalid model input size: $inputSize, defaulting to 256")
+            inputSize = 256
+        }
         Log.d("ColorizeUseCase", "Resizing to model input size: ${inputSize}x${inputSize}")
 
         val resized = Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true)
@@ -122,12 +135,19 @@ class ColorizeUseCase(context: Context) {
         Log.d("ColorizeUseCase", "Input range: min=${inputData.minOrNull()}, max=${inputData.maxOrNull()}")
 
         val shape = longArrayOf(1L, inputChannels.toLong(), inputSize.toLong(), inputSize.toLong())
+
+        Log.d("ColorizeUseCase", "Creating input tensor with shape ${shape.contentToString()}...")
         val tensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(inputData), shape)
 
         Log.d("ColorizeUseCase", "Running inference...")
 
         val inputName = s.inputNames?.first() ?: throw IllegalStateException("No input name found")
-        val result = s.run(mapOf(inputName to tensor))
+        val result = try {
+            s.run(mapOf(inputName to tensor))
+        } catch (e: Exception) {
+            tensor.close()
+            throw e
+        }
         val outputTensor = result.get(0) as OnnxTensor
 
         val buf = outputTensor.floatBuffer
@@ -156,8 +176,14 @@ class ColorizeUseCase(context: Context) {
     private fun postProcessLAB(output: FloatArray, original: Bitmap, vibrancy: Float = 1.0f): Bitmap {
         val origWidth = original.width
         val origHeight = original.height
-        val modelSize = modelInputSize
+        var modelSize = modelInputSize
+        if (modelSize <= 0) modelSize = 256
+
         val pixelsPerChannel = modelSize * modelSize
+        if (output.size < pixelsPerChannel * 2) {
+            Log.e("ColorizeUseCase", "Output too small: ${output.size} < ${pixelsPerChannel * 2}, fallback to RGB")
+            return postProcessRGB(output, original)
+        }
 
         val aChannel = FloatArray(pixelsPerChannel)
         val bChannel = FloatArray(pixelsPerChannel)
@@ -166,17 +192,38 @@ class ColorizeUseCase(context: Context) {
             bChannel[i] = output[pixelsPerChannel + i]
         }
 
-        val origPixels = IntArray(origWidth * origHeight)
-        original.getPixels(origPixels, 0, origWidth, 0, 0, origWidth, origHeight)
+        val totalPixels = origWidth.toLong() * origHeight.toLong()
+        val maxPixels = 4_000_000L
+        val scaleFactor = if (totalPixels > maxPixels) {
+            kotlin.math.sqrt(maxPixels.toDouble() / totalPixels).toFloat()
+        } else 1f
 
-        val resultPixels = IntArray(origWidth * origHeight)
+        val procWidth: Int
+        val procHeight: Int
+        val useScaled: Bitmap
+        if (scaleFactor < 1f) {
+            procWidth = (origWidth * scaleFactor).toInt().coerceAtLeast(256)
+            procHeight = (origHeight * scaleFactor).toInt().coerceAtLeast(256)
+            useScaled = Bitmap.createScaledBitmap(original, procWidth, procHeight, true)
+            Log.d("ColorizeUseCase", "Downscaling post-process from ${origWidth}x${origHeight} to ${procWidth}x${procHeight}")
+        } else {
+            procWidth = origWidth
+            procHeight = origHeight
+            useScaled = original
+        }
 
-        for (y in 0 until origHeight) {
-            for (x in 0 until origWidth) {
-                val idx = y * origWidth + x
+        val origPixels = IntArray(procWidth * procHeight)
+        useScaled.getPixels(origPixels, 0, procWidth, 0, 0, procWidth, procHeight)
+        if (useScaled != original) useScaled.recycle()
 
-                val sx = (x.toFloat() * modelSize / origWidth).toInt().coerceIn(0, modelSize - 1)
-                val sy = (y.toFloat() * modelSize / origHeight).toInt().coerceIn(0, modelSize - 1)
+        val resultPixels = IntArray(procWidth * procHeight)
+
+        for (y in 0 until procHeight) {
+            for (x in 0 until procWidth) {
+                val idx = y * procWidth + x
+
+                val sx = (x.toFloat() * modelSize / procWidth).toInt().coerceIn(0, modelSize - 1)
+                val sy = (y.toFloat() * modelSize / procHeight).toInt().coerceIn(0, modelSize - 1)
                 val si = sy * modelSize + sx
 
                 val px = origPixels[idx]
@@ -192,7 +239,12 @@ class ColorizeUseCase(context: Context) {
             }
         }
 
-        return Bitmap.createBitmap(resultPixels, origWidth, origHeight, Bitmap.Config.ARGB_8888)
+        val colorized = Bitmap.createBitmap(resultPixels, procWidth, procHeight, Bitmap.Config.ARGB_8888)
+        val finalResult = if (procWidth != origWidth || procHeight != origHeight) {
+            Log.d("ColorizeUseCase", "Upscaling result back to ${origWidth}x${origHeight}")
+            Bitmap.createScaledBitmap(colorized, origWidth, origHeight, true).also { colorized.recycle() }
+        } else colorized
+        return finalResult
     }
 
     private fun srgbToLabL(r: Int, g: Int, b: Int): Double {

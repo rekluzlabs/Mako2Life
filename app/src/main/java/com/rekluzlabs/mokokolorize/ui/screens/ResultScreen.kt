@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -30,6 +32,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -38,6 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -47,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.rekluzlabs.makokolorize.data.image.ImageRepository
+import com.rekluzlabs.makokolorize.domain.RunConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -54,7 +60,9 @@ import kotlinx.coroutines.withContext
 @Composable
 fun ResultScreen(
     originalUri: Uri,
-    onBack: () -> Unit
+    runConfig: RunConfig,
+    onBack: () -> Unit,
+    onReRun: (RunConfig) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -68,7 +76,7 @@ fun ResultScreen(
 
     LaunchedEffect(originalUri) {
         val repo = ImageRepository(context)
-        repo.loadBitmap(originalUri).onSuccess { original = it }
+        repo.loadBitmap(originalUri, maxDimension = 2048).onSuccess { original = it }
     }
 
     fun saveBitmap(uri: Uri, format: Bitmap.CompressFormat) {
@@ -163,20 +171,47 @@ fun ResultScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutlinedButton(onClick = onBack) {
+            Spacer(modifier = Modifier.height(80.dp))
+        }
+
+        // Bottom action bar
+        Column(
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            HorizontalDivider()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onBack,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text("Back")
                 }
                 Button(
                     onClick = { showSaveDialog = true },
-                    enabled = colorized != null
+                    enabled = colorized != null,
+                    modifier = Modifier.weight(1f)
                 ) {
                     Text("Save")
+                }
+                Button(
+                    onClick = { onReRun(runConfig) },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Re-run")
                 }
             }
         }
 
         if (showPreview && colorized != null) {
+            var scale by remember { mutableFloatStateOf(1f) }
+            var offsetX by remember { mutableFloatStateOf(0f) }
+            var offsetY by remember { mutableFloatStateOf(0f) }
+
             Dialog(
                 onDismissRequest = { showPreview = false },
                 properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -184,7 +219,7 @@ fun ResultScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .clickable { showPreview = false },
+                        .clickable(enabled = scale <= 1.01f) { showPreview = false },
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
@@ -193,9 +228,34 @@ fun ResultScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(32.dp)
-                            .clip(RoundedCornerShape(12.dp)),
+                            .clip(RoundedCornerShape(12.dp))
+                            .graphicsLayer(
+                                scaleX = scale,
+                                scaleY = scale,
+                                translationX = offsetX,
+                                translationY = offsetY
+                            )
+                            .pointerInput(Unit) {
+                                detectTransformGestures { _, pan, zoom, _ ->
+                                    scale = (scale * zoom).coerceIn(1f, 5f)
+                                    offsetX += pan.x
+                                    offsetY += pan.y
+                                }
+                            },
                         contentScale = ContentScale.Fit
                     )
+
+                    // Pinch hint (only shown at 1x)
+                    if (scale <= 1.01f) {
+                        Text(
+                            text = "Pinch to zoom",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = 48.dp)
+                        )
+                    }
 
                     Row(
                         modifier = Modifier
@@ -203,7 +263,12 @@ fun ResultScreen(
                             .padding(24.dp),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        OutlinedButton(onClick = { showPreview = false }) {
+                        OutlinedButton(onClick = {
+                            scale = 1f
+                            offsetX = 0f
+                            offsetY = 0f
+                            showPreview = false
+                        }) {
                             Text("Close")
                         }
                         Button(onClick = {

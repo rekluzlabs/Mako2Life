@@ -13,17 +13,41 @@ import java.io.FileOutputStream
 
 class ImageRepository(private val context: Context) {
 
-    suspend fun loadBitmap(uri: Uri): Result<Bitmap> = withContext(Dispatchers.IO) {
+    suspend fun loadBitmap(uri: Uri, maxDimension: Int = 2048): Result<Bitmap> = withContext(Dispatchers.IO) {
         try {
-            val bitmap = context.contentResolver.openInputStream(uri)?.use { input ->
-                BitmapFactory.decodeStream(input)
-            } ?: return@withContext Result.failure(Exception("Failed to decode image"))
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: return@withContext Result.failure(Exception("Failed to read image"))
+
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+            if (options.outWidth <= 0 || options.outHeight <= 0) {
+                return@withContext Result.failure(Exception("Failed to decode image bounds"))
+            }
+
+            val sampleSize = calculateSampleSize(options.outWidth, options.outHeight, maxDimension)
+            val finalOptions = BitmapFactory.Options().apply {
+                inSampleSize = sampleSize
+            }
+            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, finalOptions)
+                ?: return@withContext Result.failure(Exception("Failed to decode image"))
 
             val corrected = correctOrientation(uri, bitmap)
             Result.success(corrected)
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private fun calculateSampleSize(width: Int, height: Int, maxDimension: Int): Int {
+        if (width <= maxDimension && height <= maxDimension) return 1
+        val longestSide = maxOf(width, height)
+        var sampleSize = 1
+        while (longestSide / sampleSize > maxDimension) {
+            sampleSize *= 2
+        }
+        return sampleSize
     }
 
     private fun correctOrientation(uri: Uri, bitmap: Bitmap): Bitmap {
