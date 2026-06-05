@@ -5,18 +5,14 @@ plugins {
 
 android {
     namespace = "com.rekluzlabs.makokolorize"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.rekluzlabs.makokolorize"
         minSdk = 28
-        targetSdk = 36
-        versionCode = 26060201
-        versionName = "1.1.0"
+        targetSdk = 37
+        versionCode = 26060601
+        versionName = "1.1.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

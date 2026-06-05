@@ -1,7 +1,7 @@
 <resources>
-    <string name="app_name">Makokolorize</string>
+    <string name="app_name">makokolorize</string>
     <string name="select_photo">Select Photo</string>
-    <string name="download_model">Download Model (934 MB)</string>
+    <string name="download_model">Download Model (258 MB)</string>
     <string name="begin_colorization">Begin Colorization</string>
     <string name="save">Save</string>
     <string name="back">Back</string>

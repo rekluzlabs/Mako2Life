@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Mako_colorize"
+rootProject.name = "makokolorize"
 include(":app")
  
