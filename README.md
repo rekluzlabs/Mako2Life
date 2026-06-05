@@ -2,6 +2,7 @@
 
 Transform black & white photographs into stunning color images using advanced deep learning. **MakoKolorize** brings old memories to life with intelligent AI-powered colorization that runs entirely on your Android device.
 
+** Note: The app is currently undergoing changes. This will involve adding support for Denoise, Codeformer as well as RealESRGAN to the code. This will make MakoKolorize a one stop shop for image restoration.
 ---
 
 ## Overview
