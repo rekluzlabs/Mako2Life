@@ -2,6 +2,7 @@
 
 Transform black & white photographs into stunning color images using advanced deep learning. makokolorize brings old memories to life with intelligent AI-powered colorization that runs entirely on your Android device.
 
+** Note: The host site for the AI Models are now being hosted on Hugging Face site. All new builds will have this going forward starting June 6, 2026
 ## Overview
 
 makokolorize leverages the cutting-edge DDColor model to automatically predict realistic colors for grayscale images. Whether you're restoring a family heirloom photo, a vintage postcard, or a historical archive image, makokolorize delivers professional-quality colorization without requiring internet connectivity or cloud processing.
