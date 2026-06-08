@@ -17,6 +17,9 @@ Mako2Life leverages the cutting-edge AI models to automatically predict realisti
 
  **State-of-the-Art AI Colorization**
 - Uses DDColor model (ICCV 2023) for photo-realistic results
+- Codeformer to enhance faces
+- SCUNet to remove grain and noise from images
+- Real-ESRGAN to improve quality and upscale image
 - Dual decoder architecture for superior semantic understanding
 - Learnable color tokens optimize results for each image
 - Handles complex scenes with multiple objects and diverse contexts
@@ -57,23 +60,76 @@ Mako2Life leverages the cutting-edge AI models to automatically predict realisti
 
 ## How It Works
 
-### The Colorization Process
+### Mako2Life User Manual
+========================
 
-1. **Image Input** → You select a black & white image from your gallery
-2. **Preprocessing** → App intelligently resizes and normalizes the image
-3. **DDColor Inference** → Dual decoder network generates realistic colors
-4. **Output Generation** → Colorized RGB image is assembled and upscaled
-5. **Comparison & Save** → View original vs. colorized side-by-side, then save
+Welcome to Mako2Life, your all-in-one AI-powered photo restoration and colorization suite. This guide will help you transform your old, blurry, or black-and-white photos into vibrant, high-definition memories.
 
-### The AI Model: DDColor
+---
 
-DDColor is an end-to-end method with dual decoders for image colorization that uses multi-scale visual features to optimize learnable color tokens.
+1. GETTING STARTED
+------------------
+When you open the app, you'll start at the Home Screen.
+- Tap "Select Photo" to choose an image from your device's gallery.
+- You can also access Settings to manage app preferences.
 
-The app uses an optimized tiny version of the model for faster on-device performance.
+2. THE RESTORE SCREEN
+---------------------
+Once a photo is selected, you are presented with several quick options:
 
-## Getting Started
-as this is an early beta, not all features are yet available or implemented. 
-### Installation
+A. Auto Restore (One-Click)
+   The simplest way to get results. This enables all AI models with balanced settings to automatically clean, colorize, sharpen, and enlarge your photo in one go.
+
+B. Individual Toggles
+   - Denoise: Removes grain and digital noise from low-light or old photos.
+   - Colorize: Adds natural-looking color to black-and-white images.
+   - Face Restore: Specifically fixes blurry or damaged faces.
+   - Upscale: Increases the photo's resolution (makes it 2x larger and sharper).
+
+3. ADVANCED SETTINGS (PRE-FLIGHT)
+---------------------------------
+For power users, tap the "Advanced" button to fine-tune how the AI processes your image:
+
+AI Model Parameters:
+- DDColor Input Size: Choose how much detail the AI "sees" for colorization.
+  - 128px (Ultra Fast): Best for quick previews.
+  - 256px (Fast): Balanced default.
+  - 512px (Detail): Best for complex scenes with many objects.
+- Color Vibrancy: Adjust how "vivid" the colors appear (0.5x to 2.0x).
+- SCUNet Denoising Strength: Control how aggressively the grain is smoothed out (0% to 100%).
+- Advanced Noise Removal: Runs a double-pass for extremely grainy photos.
+- CodeFormer Fidelity: Controls the "AI interference" on faces.
+  - Lower (near 0.0): Strongest repair, but faces may look "AI-generated."
+  - Higher (near 1.0): Keeps more of the original person's features.
+- High Accuracy Mode (ML Kit): Slower, but better at finding small or partially hidden faces.
+
+4. THE PROCESSING STAGE
+-----------------------
+After clicking "Restore," you will see a live progress overlay. Makokolorize processes your image in a professional pipeline:
+1. DDColor (Colorize)
+2. RealESRGAN (Upscale)
+3. CodeFormer (Face Restore)
+4. SCUNet (Final Denoise)
+
+5. THE RESULT SCREEN
+--------------------
+Once finished, you can:
+- Compare: Drag the slider left and right to see a "Before vs After" comparison.
+- Save: Export your final image as a JPEG (with quality control) or a lossless PNG.
+- Share: Send your masterpiece directly to social media or friends.
+
+6. MAKO EDIT (MANUAL TOUCH-UPS)
+-------------------------------
+Tap the "MAKO Edit" button to manually fine-tune the AI's work:
+- Brightness/Contrast: Adjust light and depth.
+- Saturation/Warmth/Tint: Perfect the color temperature and mood.
+- Highlights/Shadows: Recover details hidden in bright skies or dark corners.
+- Sharpness: Add an extra "crunch" to the edges.
+- Crop: Reframe your photo by dragging the corners of the interactive box.
+
+---
+Thank you for using Mako2Life!
+Relive your memories in high definition.
 
 1. Download from Google Play (when released)
 2. Grant storage permissions when prompted
@@ -81,21 +137,10 @@ as this is an early beta, not all features are yet available or implemented.
    - Ensure you have a stable internet connection
    - This is a one-time download; subsequent uses are fully offline
 
-### Basic Usage
-
-1. **Launch** the app
-2. **Select Image** → Open gallery/Google Photos
-3. **Preview** → View full-screen before proceeding
-4. **Confirm** → Click "Done" to import into main screen
-5. **Colorize** → Tap "Begin Colorization" button
-6. **Monitor** → Watch progress bar
-7. **Compare** → View original (top) and colorized result (bottom)
-8. **Save** → Choose JPG or PNG format and location
-
 
 ## Privacy & Security
 
-🔒 **Your Privacy is Protected**
+**Your Privacy is Protected**
 - All image processing happens locally on your device
 - Images never leave your phone
 - No tracking, no analytics, no cloud uploads
@@ -132,7 +177,7 @@ as this is an early beta, not all features are yet available or implemented.
 
 ## Performance
 
-The app is optimized for mobile inference using ONNX Runtime. Performance may vary depending on your device's hardware capabilities. Older or mid-range devices may experience longer processing times.
+The app is optimized for mobile inference using ONNX Runtime. Performance may vary depending on your device's hardware capabilities. It is not recommended to use with older or mid-range devices as they may experience longer processing times and overheating issues.
 
 ## Future Roadmap
 
@@ -148,10 +193,10 @@ The app is optimized for mobile inference using ONNX Runtime. Performance may va
 
 ## Contributing
 
-This project is maintained by Rekluz Labs as part of the makokolorize suite of image restoration tools.
+This project is maintained by Rekluz Labs as a one stop offline image restoration tool.
 
 For bug reports, feature requests, or technical questions:
-- **GitHub Issues:** [rekluzlabs/makokolorize/issues](https://github.com/rekluzlabs/makokolorize/issues)
+- **GitHub Issues:** [rekluzlabs/mako2life/issues](https://github.com/rekluzlabs/mako2life/issues)
 - **Contact:** See Rekluz Labs website
 
 ## License
@@ -191,4 +236,4 @@ Have questions or issues? Check out:
 
 ---
 
-**makokolorize** - Restoring color to your memories, powered by cutting-edge AI.
+**mako2life** - Restoring life and color to your memories, powered by cutting-edge AI.
