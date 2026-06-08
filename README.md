@@ -198,7 +198,7 @@ This project is maintained by Rekluz Labs as a one stop offline image restoratio
 
 For bug reports, feature requests, or technical questions:
 - **GitHub Issues:** [rekluzlabs/mako2life/issues](https://github.com/rekluzlabs/mako2life/issues)
-- **Contact:** See Rekluz Labs website
+- **Contact:** contact via email rekluzlabs@gmail.com
 
 ## License
 
