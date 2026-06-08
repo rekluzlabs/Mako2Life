@@ -1,12 +1,12 @@
-# makokolorize - AI Image Colorization
+# Mako2Life- AI Image Colorization
 
-Transform black & white photographs into stunning color images using advanced deep learning. makokolorize brings old memories to life with intelligent AI-powered colorization that runs entirely on your Android device.
+Transform black & white photographs into stunning color images using advanced deep learning. makokolorize brings old memories to life with intelligent AI-powered image processing that runs entirely on your Android device.
 
 ## Note: The site for the AI Models are now being hosted on Hugging Face site. All new builds will use this link going forward starting June 6, 2026
 
 ## Overview
 
-makokolorize leverages the cutting-edge DDColor model to automatically predict realistic colors for grayscale images. Whether you're restoring a family heirloom photo, a vintage postcard, or a historical archive image, makokolorize delivers professional-quality colorization without requiring internet connectivity or cloud processing.
+Mako2Life leverages the cutting-edge AI models to automatically predict realistic colors for black and white images and to repair and upscale images Whether you're restoring a family heirloom photo, a vintage postcard, or a historical archive image, makokolorize delivers professional-quality photo restoration without requiring internet connectivity or cloud processing.
 
 <img width="300" height="640" alt="image2" src="https://github.com/user-attachments/assets/5eb4ee69-1346-4106-8819-bd63d0de5703" />
 <img width="300" height="640" alt="image3" src="https://github.com/user-attachments/assets/eaf8f353-9a37-4d06-870d-8a94b239431b" />
@@ -15,41 +15,41 @@ makokolorize leverages the cutting-edge DDColor model to automatically predict r
 
 ## Key Features
 
-✨ **State-of-the-Art AI Colorization**
+ **State-of-the-Art AI Colorization**
 - Uses DDColor model (ICCV 2023) for photo-realistic results
 - Dual decoder architecture for superior semantic understanding
 - Learnable color tokens optimize results for each image
 - Handles complex scenes with multiple objects and diverse contexts
 - Works completely offline after initial model download
 
-📱 **On-Device Processing**
+**On-Device Processing**
 - All processing happens locally on your phone
 - No cloud uploads, complete privacy protection
 - Full control over your images
 - Model downloaded once on first launch
 
-🖼️ **Flexible Image Input**
+**Flexible Image Input**
 - Import images from any size (small postcards to large family photos)
 - Works with gallery or Google Photos
 - Intelligent preprocessing handles any resolution
 - Full-screen preview before processing
 
-👁️ **Side-by-Side Comparison**
+**Side-by-Side Comparison**
 - Original grayscale image displayed above result
 - Easy visual comparison of input vs. output
 - Zoom and pan support for detailed inspection
 
-💾 **Multiple Export Formats**
+**Multiple Export Formats**
 - Save results as JPG or PNG
 - Choose your preferred format and location
 - Original metadata preserved where applicable
 
-⚡ **Fast Processing**
+**Fast Processing**
 - Optimized for mobile devices with fast inference times
 - Real-time progress indicator with percentage completion
 - Efficient performance on modern Android devices
 
-🎨 **Versatile Colorization**
+ **Versatile Colorization**
 - Excellent results on historical photos
 - Handles complex indoor and outdoor scenes
 - Works on diverse subjects and styles
