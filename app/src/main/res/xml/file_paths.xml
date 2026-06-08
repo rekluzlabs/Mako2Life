@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path name="shared_images" path="share/" />
+    <cache-path name="restore_images" path="restore/" />
+    <files-path name="exported_images" path="exports/" />
 </paths>

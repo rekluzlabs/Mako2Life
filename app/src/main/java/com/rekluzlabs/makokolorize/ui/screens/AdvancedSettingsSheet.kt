@@ -53,10 +53,14 @@ fun AdvancedSettingsSheet(
     var denoisingEnabled by remember { mutableStateOf(initialConfig.denoisingEnabled) }
     var scunetStrength by remember { mutableFloatStateOf(initialConfig.scunetStrength) }
     var scunetAdvancedNoiseRemoval by remember { mutableStateOf(initialConfig.scunetAdvancedNoiseRemoval) }
+    var scunetFastMode by remember { mutableStateOf(initialConfig.scunetFastMode) }
+    var scunetDownsample by remember { mutableStateOf(initialConfig.scunetDownsample) }
+    var scunetBeforeUpscale by remember { mutableStateOf(initialConfig.scunetBeforeUpscale) }
     var scunetSecondPassStrength by remember { mutableFloatStateOf(0.3f) }
 
     var colorizeEnabled by remember { mutableStateOf(initialConfig.colorizeEnabled) }
     var vibrancy by remember { mutableFloatStateOf(initialConfig.vibrancy) }
+    var ddcolorInputSize by remember { mutableIntStateOf(initialConfig.ddcolorInputSize) }
 
     var upscalingEnabled by remember { mutableStateOf(initialConfig.upscalingEnabled) }
     var upscaleScale by remember { mutableStateOf(initialConfig.upscaleScale) }
@@ -67,7 +71,10 @@ fun AdvancedSettingsSheet(
     var detectionConfidence by remember { mutableFloatStateOf(initialConfig.detectionConfidence) }
     var maskDilation by remember { mutableIntStateOf(initialConfig.maskDilation) }
     var codeFormerFidelity by remember { mutableFloatStateOf(initialConfig.codeFormerFidelity) }
-    var maskMergeMode by remember { mutableStateOf(initialConfig.maskMergeMode) }
+    
+    // ML Kit Settings
+    var mlKitAccurateMode by remember { mutableStateOf(initialConfig.mlKitAccurateMode) }
+    var mlKitMinFaceSize by remember { mutableFloatStateOf(initialConfig.mlKitMinFaceSize) }
     
     var codeFormerUpscaleFace by remember { mutableStateOf(initialConfig.codeFormerUpscaleFace) }
     var codeFormerUpscaleBackground by remember { mutableStateOf(initialConfig.codeFormerUpscaleBackground) }
@@ -78,7 +85,7 @@ fun AdvancedSettingsSheet(
         onDismissRequest = {
             onApply(
                 RunConfig(
-                    ddcolorInputSize = initialConfig.ddcolorInputSize,
+                    ddcolorInputSize = ddcolorInputSize,
                     vibrancy = vibrancy,
                     upscalingEnabled = upscalingEnabled,
                     faceRestoreEnabled = faceRestoreEnabled,
@@ -88,11 +95,15 @@ fun AdvancedSettingsSheet(
                     adetailerModel = adetailerModel,
                     detectionConfidence = detectionConfidence,
                     maskDilation = maskDilation,
-                    maskMergeMode = maskMergeMode,
+                    mlKitAccurateMode = mlKitAccurateMode,
+                    mlKitMinFaceSize = mlKitMinFaceSize,
                     codeFormerUpscaleFace = codeFormerUpscaleFace,
                     codeFormerUpscaleBackground = codeFormerUpscaleBackground,
                     scunetStrength = scunetStrength,
                     scunetAdvancedNoiseRemoval = scunetAdvancedNoiseRemoval,
+                    scunetFastMode = scunetFastMode,
+                    scunetDownsample = scunetDownsample,
+                    scunetBeforeUpscale = scunetBeforeUpscale,
                     upscaleScale = upscaleScale
                 )
             )
@@ -118,7 +129,7 @@ fun AdvancedSettingsSheet(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-            // ── SCUNet - Denoise ──
+            // ── 1. SCUNet - Denoise ──
             ModelSection(
                 title = "SCUNet  —  Denoise",
                 enabled = denoisingEnabled,
@@ -126,14 +137,35 @@ fun AdvancedSettingsSheet(
                 infoTitle = "SCUNet — Denoise",
                 infoText = {
                     Text(
-                        "0.1 – 0.3 — barely touches the image, good for lightly noisy photos\n\n" +
-                        "0.4 – 0.6 — the sweet spot for most old photos, removes grain without over-smoothing\n\n" +
-                        "0.7 – 0.9 — aggressive, works well on heavily damaged scans\n\n" +
-                        "1.0 — full model output, no blending with original, can look plasticky"
+                        "Speed Options:\n\n" +
+                        "Denoise Before Upscale: (Recommended) Runs on the original resolution. 16x faster than denoising HD output.\n\n" +
+                        "Fast Mode: Uses 512px tiles. Reduces AI calls by 75%.\n\n" +
+                        "Downsampled: Runs on a 50% smaller image. 4x faster."
                     )
                 }
             ) {
                 Spacer(modifier = Modifier.height(4.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    FilterChip(
+                        selected = scunetBeforeUpscale,
+                        onClick = { scunetBeforeUpscale = !scunetBeforeUpscale },
+                        label = { Text("Early (Fastest)", fontSize = 11.sp) }
+                    )
+                    FilterChip(
+                        selected = scunetFastMode,
+                        onClick = { scunetFastMode = !scunetFastMode },
+                        label = { Text("Fast Tiles", fontSize = 11.sp) }
+                    )
+                    FilterChip(
+                        selected = scunetDownsample,
+                        onClick = { scunetDownsample = !scunetDownsample },
+                        label = { Text("Downsample", fontSize = 11.sp) }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Text(
                     text = "Strength",
                     fontSize = 13.sp,
@@ -215,69 +247,16 @@ fun AdvancedSettingsSheet(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-            // ── DDColor - Colorize ──
+            // ── 2. CodeFormer - Restoration ──
             ModelSection(
-                title = "DDColor  —  Colorize",
-                enabled = colorizeEnabled,
-                onToggle = { colorizeEnabled = it },
-                infoTitle = "DDColor — Colorize",
-                infoText = {
-                    Text(
-                        "0.5 – 0.8 — desaturated, almost sepia-like, good for subtle colorization\n\n" +
-                        "0.9 – 1.1 — neutral, closest to what the model predicts naturally\n\n" +
-                        "1.2 – 1.5 — noticeably more colorful, good for landscapes and clothing\n\n" +
-                        "1.6 – 2.0 — highly saturated, can look unnatural on skin tones but striking on scenery"
-                    )
-                }
-            ) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Vibrancy",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Muted", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Natural", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Vivid", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("0.5", fontSize = 11.sp, modifier = Modifier.width(24.dp))
-                    Slider(
-                        value = vibrancy,
-                        onValueChange = { vibrancy = (it * 20).roundToInt() / 20f },
-                        onValueChangeFinished = { vibrancy = snapVibrancy(vibrancy) },
-                        valueRange = 0.5f..2.0f,
-                        steps = 29,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text("2.0", fontSize = 11.sp, modifier = Modifier.width(24.dp))
-                }
-                Text(
-                    text = "%.2f".format(vibrancy),
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-            // ── ADetailer / CodeFormer - Restoration ──
-            ModelSection(
-                title = "ADetailer  —  Restoration",
+                title = "CodeFormer  —  Restoration",
                 enabled = faceRestoreEnabled,
                 onToggle = { faceRestoreEnabled = it },
-                infoTitle = "ADetailer Restoration",
+                infoTitle = "CodeFormer Restoration",
                 infoText = {
                     Text(
-                        "Inspired by ADetailer, this pipeline detects specific objects (faces, hands, etc.) " +
-                        "and runs high-fidelity restoration on each cropped patch.\n\n" +
+                        "This pipeline detects specific objects (faces, hands, etc.) " +
+                        "and runs high-fidelity restoration on each cropped patch using the CodeFormer model.\n\n" +
                         "Denoising Strength (Fidelity): Controls AI creativity. 0.0 is original, 1.0 is full AI repaint.\n\n" +
                         "Mask Dilation: Expands the restoration area to blend better with hair and backgrounds."
                     )
@@ -339,20 +318,62 @@ fun AdvancedSettingsSheet(
                     steps = 40
                 )
 
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider()
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Merge Mode
-                Text("Mask Merge Mode", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Sequential", "Batch").forEach { mode ->
-                        FilterChip(
-                            selected = maskMergeMode == mode,
-                            onClick = { maskMergeMode = mode },
-                            label = { Text(mode, fontSize = 11.sp) }
+                // ML Kit - The Eyes
+                Text(
+                    text = "Face Detection (ML Kit)",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                // High Accuracy Toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "High Accuracy Mode",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Slower but finds smaller faces.",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
                     }
+                    Switch(
+                        checked = mlKitAccurateMode,
+                        onCheckedChange = { mlKitAccurateMode = it }
+                    )
                 }
-                
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Sensitivity Slider
+                val sensitivity = (0.5f - mlKitMinFaceSize) / 0.49f
+                Text(
+                    text = "Detection Sensitivity: ${(sensitivity * 100).toInt()}%",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "Higher sensitivity finds tiny faces in the distance.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+                Slider(
+                    value = sensitivity,
+                    onValueChange = { mlKitMinFaceSize = 0.5f - (it * 0.49f) },
+                    valueRange = 0f..1f
+                )
+
                 Spacer(modifier = Modifier.height(8.dp))
                 HorizontalDivider()
 
@@ -368,7 +389,80 @@ fun AdvancedSettingsSheet(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-            // ── RealESRGAN - Upscale ──
+            // ── 3. DDColor - Colorize ──
+            ModelSection(
+                title = "DDColor  —  Colorize",
+                enabled = colorizeEnabled,
+                onToggle = { colorizeEnabled = it },
+                infoTitle = "DDColor — Colorize",
+                infoText = {
+                    Text(
+                        "Inference Size: Controls the AI resolution. Lower (128-256) is faster, Higher (512) is more accurate.\n\n" +
+                        "Vibrancy: Controls saturation.\n" +
+                        "0.5 – 0.8 — desaturated, almost sepia-like.\n" +
+                        "0.9 – 1.1 — neutral.\n" +
+                        "1.2 – 2.0 — vivid/striking."
+                    )
+                }
+            ) {
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Text(
+                    text = "Inference Resolution: ${ddcolorInputSize}px",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(128, 256, 512).forEach { size ->
+                        FilterChip(
+                            selected = ddcolorInputSize == size,
+                            onClick = { ddcolorInputSize = size },
+                            label = { Text("${size}px") }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Vibrancy",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Muted", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Natural", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Vivid", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("0.5", fontSize = 11.sp, modifier = Modifier.width(24.dp))
+                    Slider(
+                        value = vibrancy,
+                        onValueChange = { vibrancy = (it * 20).roundToInt() / 20f },
+                        onValueChangeFinished = { vibrancy = snapVibrancy(vibrancy) },
+                        valueRange = 0.5f..2.0f,
+                        steps = 29,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text("2.0", fontSize = 11.sp, modifier = Modifier.width(24.dp))
+                }
+                Text(
+                    text = "%.2f".format(vibrancy),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // ── 4. RealESRGAN - Upscale ──
             ModelSection(
                 title = "RealESRGAN  —  Upscale",
                 enabled = upscalingEnabled,
@@ -377,8 +471,9 @@ fun AdvancedSettingsSheet(
                 infoText = {
                     Text(
                         "RealESRGAN increases image resolution using AI.\n\n" +
-                        "2x — doubles the image dimensions, good balance of quality and speed\n\n" +
-                        "4x — quadruples dimensions, significantly sharper but slower and uses more memory"
+                        "1x — restores texture and clarity without changing dimensions\n\n" +
+                        "2x — doubles the dimensions, best balance of quality and speed\n\n" +
+                        "4x — quadruples dimensions for extreme detail"
                     )
                 }
             ) {
@@ -390,7 +485,7 @@ fun AdvancedSettingsSheet(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(2, 4).forEach { scale ->
+                    listOf(1, 2, 4).forEach { scale ->
                         FilterChip(
                             selected = upscaleScale == scale,
                             onClick = { upscaleScale = scale },
@@ -416,7 +511,8 @@ fun AdvancedSettingsSheet(
                     adetailerModel = "face_yolov8n"
                     detectionConfidence = 0.3f
                     maskDilation = 0
-                    maskMergeMode = "Sequential"
+                    mlKitAccurateMode = true
+                    mlKitMinFaceSize = 0.1f
                     codeFormerUpscaleFace = false
                     codeFormerUpscaleBackground = false
                 },

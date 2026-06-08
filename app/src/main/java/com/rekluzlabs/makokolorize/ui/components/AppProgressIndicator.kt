@@ -27,7 +27,8 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun AppProgressIndicator(
     progress: Float,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    status: String? = null
 ) {
     // 1. Smoothly animates the progress bar matching the download stream
     val animatedProgress by animateFloatAsState(
@@ -73,5 +74,15 @@ fun AppProgressIndicator(
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.alpha(pulseAlpha) // Applies the glowing pulse animation
         )
+
+        if (status != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = status,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium
+            )
+        }
     }
 }

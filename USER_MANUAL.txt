@@ -1,0 +1,70 @@
+Makokolorize User Manual
+========================
+
+Welcome to Makokolorize, your all-in-one AI-powered photo restoration and colorization suite. This guide will help you transform your old, blurry, or black-and-white photos into vibrant, high-definition memories.
+
+---
+
+1. GETTING STARTED
+------------------
+When you open the app, you'll start at the Home Screen.
+- Tap "Select Photo" to choose an image from your device's gallery.
+- You can also access Settings to manage app preferences.
+
+2. THE RESTORE SCREEN
+---------------------
+Once a photo is selected, you are presented with several quick options:
+
+A. Auto Restore (One-Click)
+   The simplest way to get results. This enables all AI models with balanced settings to automatically clean, colorize, sharpen, and enlarge your photo in one go.
+
+B. Individual Toggles
+   - Denoise: Removes grain and digital noise from low-light or old photos.
+   - Colorize: Adds natural-looking color to black-and-white images.
+   - Face Restore: Specifically fixes blurry or damaged faces.
+   - Upscale: Increases the photo's resolution (makes it 2x larger and sharper).
+
+3. ADVANCED SETTINGS (PRE-FLIGHT)
+---------------------------------
+For power users, tap the "Advanced" button to fine-tune how the AI processes your image:
+
+AI Model Parameters:
+- DDColor Input Size: Choose how much detail the AI "sees" for colorization.
+  - 128px (Ultra Fast): Best for quick previews.
+  - 256px (Fast): Balanced default.
+  - 512px (Detail): Best for complex scenes with many objects.
+- Color Vibrancy: Adjust how "vivid" the colors appear (0.5x to 2.0x).
+- SCUNet Denoising Strength: Control how aggressively the grain is smoothed out (0% to 100%).
+- Advanced Noise Removal: Runs a double-pass for extremely grainy photos.
+- CodeFormer Fidelity: Controls the "AI interference" on faces.
+  - Lower (near 0.0): Strongest repair, but faces may look "AI-generated."
+  - Higher (near 1.0): Keeps more of the original person's features.
+- High Accuracy Mode (ML Kit): Slower, but better at finding small or partially hidden faces.
+
+4. THE PROCESSING STAGE
+-----------------------
+After clicking "Restore," you will see a live progress overlay. Makokolorize processes your image in a professional pipeline:
+1. DDColor (Colorize)
+2. RealESRGAN (Upscale)
+3. CodeFormer (Face Restore)
+4. SCUNet (Final Denoise)
+
+5. THE RESULT SCREEN
+--------------------
+Once finished, you can:
+- Compare: Drag the slider left and right to see a "Before vs After" comparison.
+- Save: Export your final image as a JPEG (with quality control) or a lossless PNG.
+- Share: Send your masterpiece directly to social media or friends.
+
+6. MAKO EDIT (MANUAL TOUCH-UPS)
+-------------------------------
+Tap the "MAKO Edit" button to manually fine-tune the AI's work:
+- Brightness/Contrast: Adjust light and depth.
+- Saturation/Warmth/Tint: Perfect the color temperature and mood.
+- Highlights/Shadows: Recover details hidden in bright skies or dark corners.
+- Sharpness: Add an extra "crunch" to the edges.
+- Crop: Reframe your photo by dragging the corners of the interactive box.
+
+---
+Thank you for using Makokolorize!
+Relive your memories in high definition.

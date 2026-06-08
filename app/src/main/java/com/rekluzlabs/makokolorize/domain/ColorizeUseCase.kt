@@ -6,16 +6,33 @@ import android.graphics.Canvas
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
+import android.graphics.RectF
 import android.util.Log
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceDetectorOptions
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
+import com.rekluzlabs.makokolorize.data.image.ImageRepository
 import com.rekluzlabs.makokolorize.data.model.ModelRepository
 import com.rekluzlabs.makokolorize.ml.CodeFormerModel
 import com.rekluzlabs.makokolorize.ml.CodeFormerRunner
+import com.rekluzlabs.makokolorize.ml.FaceBlender
+import com.rekluzlabs.makokolorize.ml.RealEsrganUpscaler
 import com.rekluzlabs.makokolorize.ml.ScunetRunner
+import com.rekluzlabs.makokolorize.processor.ColorCast
+import com.rekluzlabs.makokolorize.processor.ImageDiagnostics
+import com.rekluzlabs.makokolorize.processor.LevelsMode
+import com.rekluzlabs.makokolorize.processor.adjustSaturation
+import com.rekluzlabs.makokolorize.processor.adjustWarmth
+import com.rekluzlabs.makokolorize.processor.autoLevelsWithStrength
+import com.rekluzlabs.makokolorize.util.ThermalMonitor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.nio.FloatBuffer
@@ -26,90 +43,165 @@ class ColorizeUseCase(private val context: Context) {
 
     private var ddcolorSession: OrtSession? = null
     private var ddcolorInputSize: Int = 256
+    private var isDdcolorDynamic: Boolean = false
     private var ddcolorInputChannels: Int = 3
     private var ddcolorOutputChannels: Int = 2
 
     private var codeFormerModel: CodeFormerModel? = null
+    private var realEsrganUpscaler: RealEsrganUpscaler? = null
 
     fun cleanup() {
         ddcolorSession?.close()
         ddcolorSession = null
         codeFormerModel?.close()
         codeFormerModel = null
+        realEsrganUpscaler?.close()
+        realEsrganUpscaler = null
     }
 
     suspend fun isModelReady(): Boolean =
-        modelRepository.isScunetModelDownloaded() && modelRepository.isCodeformerModelDownloaded()
+        modelRepository.isScunetModelDownloaded() &&
+                modelRepository.isCodeformerModelDownloaded() &&
+                modelRepository.isRealEsrganDownloaded()
 
     suspend fun execute(
         bitmap: Bitmap,
-        onProgress: (Float) -> Unit,
+        onProgress: (Float, String?) -> Unit,
         config: RunConfig = RunConfig()
     ): Result<Bitmap> = withContext(Dispatchers.IO) {
+        val thermalMonitor = ThermalMonitor(context)
+        
         try {
             ensureActive()
-            onProgress(0f)
+            onProgress(0f, "Starting...")
 
             Log.d("ColorizeUseCase", "=== Starting restoration pipeline ===")
             Log.d("ColorizeUseCase", "Input bitmap: ${bitmap.width}x${bitmap.height}")
-            Log.d("ColorizeUseCase", "SCUNet enabled=${config.denoisingEnabled}, strength=${config.scunetStrength}")
-            Log.d("ColorizeUseCase", "DDColor enabled=${config.colorizeEnabled}, vibrancy=${config.vibrancy}")
-            Log.d("ColorizeUseCase", "ADetailer enabled=${config.faceRestoreEnabled}, model=${config.adetailerModel}, conf=${config.detectionConfidence}, dilation=${config.maskDilation}, merge=${config.maskMergeMode}, denoisingStrength=${1.0f - config.codeFormerFidelity}")
+            
+            var currentBitmap = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, true)
 
-            // 1. DDColor Colorization
-            val colorized = if (config.colorizeEnabled) {
-                onProgress(0.1f)
-                if (ddcolorSession == null) loadDdcolorModel()
-                val grayInput = normalizeToGrayscale(bitmap)
-                val output = runDdcolorInference(grayInput)
-                val result = postProcess(output, grayInput, config.vibrancy)
-                grayInput.recycle()
-                result
-            } else {
-                bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, true)
+            // Helper to check thermals and wait if needed
+            val checkThermals = suspend { stage: String ->
+                var state = thermalMonitor.getCurrentState()
+                if (state == ThermalMonitor.ThermalState.CRITICAL) {
+                    onProgress(-1f, "Device is too hot. Cooling down...")
+                    Log.w("ColorizeUseCase", "Thermal CRITICAL before $stage. Pausing.")
+                    while (thermalMonitor.getCurrentState() == ThermalMonitor.ThermalState.CRITICAL) {
+                        delay(2000) // Wait 2 seconds and check again
+                        ensureActive()
+                    }
+                    onProgress(0f, "Resuming $stage...")
+                }
+            }
+
+            // 1. SCUNet Denoising
+            if (config.denoisingEnabled) {
+                checkThermals("Denoising")
+                onProgress(0.1f, "Cleaning up noise (SCUNet)...")
+                val runner = ScunetRunner(modelRepository.getScunetModelPath())
+                val result = runner.use {
+                    it.run(
+                        currentBitmap,
+                        config.scunetStrength,
+                        config.scunetAdvancedNoiseRemoval,
+                        config.scunetFastMode,
+                        config.scunetDownsample
+                    ) { _ -> }
+                }
+                if (currentBitmap != bitmap) currentBitmap.recycle()
+                currentBitmap = result
             }
             ensureActive()
-            onProgress(0.4f)
 
-            // 2. RealESRGAN Upscaling (Skipped for now as no runner exists)
-            val upscaled = colorized
-
-            // 3. CodeFormer Face Restore
-            val faceRestored = if (config.faceRestoreEnabled) {
-                onProgress(0.5f)
+            // 2. CodeFormer Face Restore
+            if (config.faceRestoreEnabled) {
+                checkThermals("Face Restore")
+                onProgress(0.3f, "Restoring faces (CodeFormer)...")
                 if (codeFormerModel == null) {
                     codeFormerModel = CodeFormerModel(modelRepository.getCodeformerModelPath())
                 }
                 val runner = CodeFormerRunner(codeFormerModel!!)
-                val result = runner.process(upscaled, config.codeFormerFidelity)
-                // If we didn't colorize, upscaled is just a copy of bitmap. 
-                // If we did, upscaled is the colorized bitmap.
-                if (upscaled != bitmap) upscaled.recycle()
-                result
-            } else {
-                upscaled
+                val blender = FaceBlender(runner)
+
+                val faceRects = detectFaces(currentBitmap, config)
+                Log.d("ColorizeUseCase", "Detected ${faceRects.size} face(s)")
+
+                val result = blender.restoreFaces(
+                    base            = currentBitmap,
+                    faceRects       = faceRects,
+                    fidelityWeight  = config.codeFormerFidelity,
+                    maskDilation    = config.maskDilation,
+                    upscaleFace     = config.codeFormerUpscaleFace
+                )
+                if (currentBitmap != bitmap) currentBitmap.recycle()
+                currentBitmap = result
             }
             ensureActive()
-            onProgress(0.7f)
 
-            // 4. SCUNet Denoising
-            val denoised = if (config.denoisingEnabled) {
-                onProgress(0.8f)
-                val runner = ScunetRunner(modelRepository.getScunetModelPath())
-                runner.use {
-                    it.run(faceRestored, config.scunetStrength, config.scunetAdvancedNoiseRemoval) { _ -> }
+            // 3. DDColor Colorization
+            if (config.colorizeEnabled) {
+                checkThermals("Colorization")
+                onProgress(0.5f, "Colorizing...")
+                if (ddcolorSession == null) loadDdcolorModel()
+                
+                // Only override if the model supports dynamic shapes
+                if (isDdcolorDynamic) {
+                    ddcolorInputSize = config.ddcolorInputSize
+                } else {
+                    Log.w("ColorizeUseCase", "Model is fixed-size ($ddcolorInputSize), ignoring user preference (${config.ddcolorInputSize})")
                 }
-            } else {
-                faceRestored
+
+                val grayInput = normalizeToGrayscale(currentBitmap)
+                val output = runDdcolorInference(grayInput)
+                val colorized = postProcess(output, grayInput, config.vibrancy)
+                
+                grayInput.recycle()
+                if (currentBitmap != bitmap) currentBitmap.recycle()
+                currentBitmap = colorized
             }
+            ensureActive()
 
-            // Cleanup intermediate bitmaps
-            if (colorized != bitmap && colorized != denoised && colorized != faceRestored) colorized.recycle()
-            if (faceRestored != bitmap && faceRestored != denoised) faceRestored.recycle()
+            // 4. RealESRGAN Upscaling
+            if (config.upscalingEnabled) {
+                checkThermals("Upscaling")
+                onProgress(0.8f, "Upscaling ${config.upscaleScale}x (RealESRGAN)...")
+                if (realEsrganUpscaler == null) {
+                    realEsrganUpscaler = RealEsrganUpscaler(modelRepository.getRealEsrganPath())
+                    realEsrganUpscaler!!.loadModel()
+                }
+                val upscaled = realEsrganUpscaler!!.upscale(currentBitmap, config.upscaleScale)
+                if (currentBitmap != bitmap) currentBitmap.recycle()
+                currentBitmap = upscaled
+            }
+            ensureActive()
 
-            onProgress(1f)
+            // 5. Final Post-processing
+            onProgress(0.9f, "Finalizing image...")
+            val finalOutputBitmap = withContext(Dispatchers.Default) {
+                val stats = ImageDiagnostics.analyze(currentBitmap)
+
+                var output = currentBitmap
+
+                if (config.autoLevelsEnabled) {
+                    val levelsMode = when {
+                        stats.dominantCast == ColorCast.SEPIA -> LevelsMode.INDEPENDENT
+                        stats.dominantCast == ColorCast.NEUTRAL -> LevelsMode.COMBINED
+                        else -> LevelsMode.LUMINANCE
+                    }
+                    output = autoLevelsWithStrength(output, config.autoLevelsStrength, levelsMode)
+                }
+
+                if (config.saturationBoost != 1.0f) output = adjustSaturation(output, config.saturationBoost)
+                if (config.warmthBias != 0.0f) output = adjustWarmth(output, config.warmthBias)
+
+                output
+            }
+            if (currentBitmap != bitmap && currentBitmap != finalOutputBitmap) currentBitmap.recycle()
+            currentBitmap = finalOutputBitmap
+
+            onProgress(1f, "Finished")
             Log.d("ColorizeUseCase", "=== Restoration pipeline complete ===")
-            Result.success(denoised)
+            Result.success(currentBitmap)
         } catch (e: OutOfMemoryError) {
             Log.e("ColorizeUseCase", "Out of memory", e)
             Result.failure(Exception("Device ran out of memory. Try a smaller image."))
@@ -119,7 +211,40 @@ class ColorizeUseCase(private val context: Context) {
         }
     }
 
-    // ── Model loading ───────────────────────────────────────────────
+    /**
+     * Returns face bounding boxes in pixel coordinates of [bitmap] using ML Kit.
+     */
+    private suspend fun detectFaces(bitmap: Bitmap, config: RunConfig): List<RectF> =
+        suspendCancellableCoroutine { continuation ->
+            val options = FaceDetectorOptions.Builder()
+                .setPerformanceMode(
+                    if (config.mlKitAccurateMode) FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE
+                    else FaceDetectorOptions.PERFORMANCE_MODE_FAST
+                )
+                .setMinFaceSize(config.mlKitMinFaceSize)
+                .setContourMode(FaceDetectorOptions.CONTOUR_MODE_NONE)
+                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
+                .build()
+
+            val detector = FaceDetection.getClient(options)
+            val image = InputImage.fromBitmap(bitmap, 0)
+
+            detector.process(image)
+                .addOnSuccessListener { faces ->
+                    val result = faces.map { RectF(it.boundingBox) }
+                    continuation.resume(result)
+                }
+                .addOnFailureListener { e ->
+                    Log.e("ColorizeUseCase", "ML Kit Face detection failed", e)
+                    continuation.resume(emptyList())
+                }
+            
+            continuation.invokeOnCancellation {
+                detector.close()
+            }
+        }
+
+    // ── Model loading ────────────────────────────────────────────────────────────
 
     private fun loadDdcolorModel() {
         try {
@@ -137,11 +262,16 @@ class ColorizeUseCase(private val context: Context) {
             if (shape.size >= 4) {
                 val c = shape[1].toInt()
                 if (c in 1..3) ddcolorInputChannels = c
-                else Log.w("ColorizeUseCase", "DDColor unexpected input channels: $c, keeping default $ddcolorInputChannels")
 
                 val sz = shape[2].toInt()
-                if (sz in 32..2048) ddcolorInputSize = sz
-                else Log.w("ColorizeUseCase", "DDColor unexpected input size: $sz (dynamic?), keeping default $ddcolorInputSize")
+                if (sz <= 0) {
+                    isDdcolorDynamic = true
+                    Log.d("ColorizeUseCase", "DDColor detected dynamic input shape")
+                } else if (sz in 32..2048) {
+                    ddcolorInputSize = sz
+                    isDdcolorDynamic = false
+                    Log.d("ColorizeUseCase", "DDColor detected fixed input shape: $sz")
+                }
             }
 
             val outputInfo = s.outputInfo
@@ -151,11 +281,7 @@ class ColorizeUseCase(private val context: Context) {
             if (outputShape.size >= 4) {
                 val c = outputShape[1].toInt()
                 if (c in 1..3) ddcolorOutputChannels = c
-                else Log.w("ColorizeUseCase", "DDColor unexpected output channels: $c, keeping default $ddcolorOutputChannels")
             }
-
-            Log.d("ColorizeUseCase", "DDColor loaded. Input: ${shape.contentToString()}, Output: ${outputShape.contentToString()}")
-            Log.d("ColorizeUseCase", "DDColor: size=$ddcolorInputSize, inCh=$ddcolorInputChannels, outCh=$ddcolorOutputChannels")
         } catch (e: Exception) {
             Log.e("ColorizeUseCase", "Failed to load DDColor model", e)
             ddcolorSession?.close()
@@ -164,17 +290,14 @@ class ColorizeUseCase(private val context: Context) {
         }
     }
 
-    // ── DDColor inference ───────────────────────────────────────────
+    // ── DDColor inference ────────────────────────────────────────────────────────
 
     private fun runDdcolorInference(bitmap: Bitmap): FloatArray {
         val s = ddcolorSession ?: throw IllegalStateException("DDColor model not loaded")
         val env = OrtEnvironment.getEnvironment()
 
         var inputSize = ddcolorInputSize
-        if (inputSize <= 0 || inputSize > 2048) {
-            Log.w("ColorizeUseCase", "Invalid DDColor input size: $inputSize, defaulting to 256")
-            inputSize = 256
-        }
+        if (inputSize <= 0) inputSize = 256
 
         val resized = Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true)
         val pixels = IntArray(inputSize * inputSize)
@@ -189,9 +312,7 @@ class ColorizeUseCase(private val context: Context) {
             val r = (px shr 16) and 0xFF
             val g = (px shr 8) and 0xFF
             val b = px and 0xFF
-
             val gray = (0.299f * r + 0.587f * g + 0.114f * b) / 255f
-
             for (c in 0 until inputChannels) {
                 inputData[c * inputSize * inputSize + i] = gray
             }
@@ -218,17 +339,15 @@ class ColorizeUseCase(private val context: Context) {
         return out
     }
 
-    // ── Post-processing ─────────────────────────────────────────────
+    // ── Post-processing ──────────────────────────────────────────────────────────
 
     private fun postProcess(
         output: FloatArray,
         original: Bitmap,
-        vibrancy: Float = 1.0f,
-        denoised: Bitmap? = null
+        vibrancy: Float = 1.0f
     ): Bitmap {
-        val source = denoised ?: original
         return if (ddcolorOutputChannels == 2) {
-            postProcessLAB(output, original, source, vibrancy)
+            postProcessLAB(output, original, vibrancy)
         } else {
             postProcessRGB(output, original)
         }
@@ -237,7 +356,6 @@ class ColorizeUseCase(private val context: Context) {
     private fun postProcessLAB(
         output: FloatArray,
         original: Bitmap,
-        source: Bitmap,
         vibrancy: Float = 1.0f
     ): Bitmap {
         val origWidth = original.width
@@ -246,11 +364,6 @@ class ColorizeUseCase(private val context: Context) {
         if (modelSize <= 0) modelSize = 256
 
         val pixelsPerChannel = modelSize * modelSize
-        if (output.size < pixelsPerChannel * 2) {
-            Log.e("ColorizeUseCase", "Output too small: ${output.size} < ${pixelsPerChannel * 2}, fallback to RGB")
-            return postProcessRGB(output, original)
-        }
-
         val aChannel = FloatArray(pixelsPerChannel)
         val bChannel = FloatArray(pixelsPerChannel)
         for (i in 0 until pixelsPerChannel) {
@@ -258,37 +371,16 @@ class ColorizeUseCase(private val context: Context) {
             bChannel[i] = output[pixelsPerChannel + i]
         }
 
-        val totalPixels = origWidth.toLong() * origHeight.toLong()
-        val maxPixels = 4_000_000L
-        val scaleFactor = if (totalPixels > maxPixels) {
-            kotlin.math.sqrt(maxPixels.toDouble() / totalPixels).toFloat()
-        } else 1f
+        val origPixels = IntArray(origWidth * origHeight)
+        original.getPixels(origPixels, 0, origWidth, 0, 0, origWidth, origHeight)
 
-        val procWidth: Int
-        val procHeight: Int
-        val useScaled: Bitmap
-        if (scaleFactor < 1f) {
-            procWidth = (origWidth * scaleFactor).toInt().coerceAtLeast(256)
-            procHeight = (origHeight * scaleFactor).toInt().coerceAtLeast(256)
-            useScaled = Bitmap.createScaledBitmap(source, procWidth, procHeight, true)
-        } else {
-            procWidth = origWidth
-            procHeight = origHeight
-            useScaled = source
-        }
+        val resultPixels = IntArray(origWidth * origHeight)
 
-        val origPixels = IntArray(procWidth * procHeight)
-        useScaled.getPixels(origPixels, 0, procWidth, 0, 0, procWidth, procHeight)
-        if (useScaled != source) useScaled.recycle()
-
-        val resultPixels = IntArray(procWidth * procHeight)
-
-        for (y in 0 until procHeight) {
-            for (x in 0 until procWidth) {
-                val idx = y * procWidth + x
-
-                val sx = (x.toFloat() * modelSize / procWidth).toInt().coerceIn(0, modelSize - 1)
-                val sy = (y.toFloat() * modelSize / procHeight).toInt().coerceIn(0, modelSize - 1)
+        for (y in 0 until origHeight) {
+            for (x in 0 until origWidth) {
+                val idx = y * origWidth + x
+                val sx = (x.toFloat() * modelSize / origWidth).toInt().coerceIn(0, modelSize - 1)
+                val sy = (y.toFloat() * modelSize / origHeight).toInt().coerceIn(0, modelSize - 1)
                 val si = sy * modelSize + sx
 
                 val px = origPixels[idx]
@@ -304,27 +396,17 @@ class ColorizeUseCase(private val context: Context) {
             }
         }
 
-        val colorized = Bitmap.createBitmap(resultPixels, procWidth, procHeight, Bitmap.Config.ARGB_8888)
-        val finalResult = if (procWidth != origWidth || procHeight != origHeight) {
-            Log.d("ColorizeUseCase", "Upscaling result back to ${origWidth}x${origHeight}")
-            Bitmap.createScaledBitmap(colorized, origWidth, origHeight, true).also { colorized.recycle() }
-        } else colorized
-        return finalResult
+        return Bitmap.createBitmap(resultPixels, origWidth, origHeight, Bitmap.Config.ARGB_8888)
     }
 
     private fun srgbToLabL(r: Int, g: Int, b: Int): Double {
         val rr = srgbToLinear(r / 255.0)
         val gg = srgbToLinear(g / 255.0)
         val bb = srgbToLinear(b / 255.0)
-
         val x = 0.4124564 * rr + 0.3575761 * gg + 0.1804375 * bb
         val y = 0.2126729 * rr + 0.7151522 * gg + 0.0721750 * bb
         val z = 0.0193339 * rr + 0.1191920 * gg + 0.9503041 * bb
-
-        val fx = labF(x / 0.95047)
         val fy = labF(y / 1.0)
-        val fz = labF(z / 1.08883)
-
         return 116.0 * fy - 16.0
     }
 
@@ -332,27 +414,22 @@ class ColorizeUseCase(private val context: Context) {
         val fy = (l + 16.0) / 116.0
         val fx = a / 500.0 + fy
         val fz = fy - b / 200.0
-
         val x = 0.95047 * labFInv(fx)
         val y = 1.0 * labFInv(fy)
         val z = 1.08883 * labFInv(fz)
-
         val rr = linearToSrgb((3.2404542 * x - 1.5371385 * y - 0.4985314 * z).coerceIn(0.0, 1.0))
         val gg = linearToSrgb((-0.9692660 * x + 1.8760108 * y + 0.0415560 * z).coerceIn(0.0, 1.0))
         val bb = linearToSrgb((0.0556434 * x - 0.2040259 * y + 1.0572252 * z).coerceIn(0.0, 1.0))
-
         return (0xFF shl 24) or ((rr * 255.0 + 0.5).toInt().coerceIn(0, 255) shl 16) or
                 ((gg * 255.0 + 0.5).toInt().coerceIn(0, 255) shl 8) or
                 ((bb * 255.0 + 0.5).toInt().coerceIn(0, 255))
     }
 
-    private fun srgbToLinear(c: Double): Double {
-        return if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
-    }
+    private fun srgbToLinear(c: Double) =
+        if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
 
-    private fun linearToSrgb(c: Double): Double {
-        return if (c <= 0.0031308) 12.92 * c else 1.055 * Math.pow(c, 1.0 / 2.4) - 0.055
-    }
+    private fun linearToSrgb(c: Double) =
+        if (c <= 0.0031308) 12.92 * c else 1.055 * Math.pow(c, 1.0 / 2.4) - 0.055
 
     private fun labF(t: Double): Double {
         val delta = 6.0 / 29.0
@@ -367,21 +444,7 @@ class ColorizeUseCase(private val context: Context) {
     private fun postProcessRGB(output: FloatArray, original: Bitmap): Bitmap {
         val elementsPerChannel = output.size / 3
         val size = kotlin.math.sqrt(elementsPerChannel.toDouble()).toInt()
-
-        Log.d("ColorizeUseCase", "RGB post-process, detected size=$size")
-
-        val outputMax = output.maxOrNull() ?: 1f
-        val outputMin = output.minOrNull() ?: 0f
-        val outputRange = outputMax - outputMin
-
-        val normalize = { value: Float ->
-            if (outputRange > 0.001f) {
-                ((value - outputMin) / outputRange * 255f).coerceIn(0f, 255f)
-            } else {
-                128f
-            }
-        }
-
+        val normalize = { value: Float -> (value * 255f).coerceIn(0f, 255f) }
         val pixels = IntArray(size * size)
         for (i in 0 until size * size) {
             val r = normalize(output[i]).toInt()
@@ -389,16 +452,8 @@ class ColorizeUseCase(private val context: Context) {
             val b = normalize(output[2 * size * size + i]).toInt()
             pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
         }
-
         val colorized = Bitmap.createBitmap(pixels, size, size, Bitmap.Config.ARGB_8888)
-
-        val result = if (colorized.width != original.width || colorized.height != original.height) {
-            Log.d("ColorizeUseCase", "Upscaling to ${original.width}x${original.height}")
-            Bitmap.createScaledBitmap(colorized, original.width, original.height, true)
-        } else {
-            colorized
-        }
-
+        val result = Bitmap.createScaledBitmap(colorized, original.width, original.height, true)
         colorized.recycle()
         return result
     }

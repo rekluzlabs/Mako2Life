@@ -13,19 +13,19 @@ import java.util.concurrent.TimeUnit
 class ModelRepository(private val context: Context) {
 
     private val modelDir: File
-        get() = File(context.filesDir, "models")
+        get() = File(context.getExternalFilesDir(null), "models")
 
     private val modelFile: File
-        get() = File(modelDir, MODEL_FILENAME)
+        get() = resolveModelFile(context, MODEL_FILENAME)
 
     private val scunetModelFile: File
-        get() = File(modelDir, SCUNET_MODEL_FILENAME)
+        get() = resolveModelFile(context, SCUNET_MODEL_FILENAME)
 
     private val codeformerModelFile: File
-        get() = File(modelDir, CODEFORMER_MODEL_FILENAME)
+        get() = resolveModelFile(context, CODEFORMER_MODEL_FILENAME)
 
     private val realesrganModelFile: File
-        get() = File(modelDir, REALESRGAN_MODEL_FILENAME)
+        get() = resolveModelFile(context, REALESRGAN_MODEL_FILENAME)
 
     fun isModelDownloaded(): Boolean {
         if (!modelFile.exists() || modelFile.length() == 0L) return false
@@ -153,10 +153,18 @@ class ModelRepository(private val context: Context) {
     }
 
     companion object {
+        fun resolveModelFile(context: Context, fileName: String): File {
+            val externalFile = File(context.getExternalFilesDir(null), "models/$fileName")
+            if (externalFile.exists()) return externalFile
+            val internalFile = File(context.filesDir, "models/$fileName")
+            if (internalFile.exists()) return internalFile
+            return externalFile
+        }
+
         const val MODEL_FILENAME = "ddcolor_paper_tiny.onnx"
         const val SCUNET_MODEL_FILENAME = "SCUNet-PSNR.onnx"
         const val CODEFORMER_MODEL_FILENAME = "codeformer.onnx"
-        const val REALESRGAN_MODEL_FILENAME = "realesrgan-x4.onnx"
+        const val REALESRGAN_MODEL_FILENAME = "realesr-general-x4v3.onnx"
 
         const val MODEL_URL = "https://huggingface.co/RekluzLabs/MakoKolor/resolve/main/ddcolor_paper_tiny.onnx"
         const val MODEL_SIZE_BYTES = 264_000_000L
@@ -167,8 +175,8 @@ class ModelRepository(private val context: Context) {
         const val CODEFORMER_MODEL_URL = "https://huggingface.co/RekluzLabs/MakoKolor/resolve/main/codeformer.onnx"
         const val CODEFORMER_MODEL_SIZE_BYTES = 368_000_000L
 
-        const val REALESRGAN_MODEL_URL = "https://huggingface.co/RekluzLabs/MakoKolor/resolve/main/realesrgan-x4.onnx"
-        const val REALESRGAN_MODEL_SIZE_BYTES = 65_000_000L
+        const val REALESRGAN_MODEL_URL = "https://huggingface.co/RekluzLabs/MakoKolor/resolve/main/realesr-general-x4v3.onnx"
+        const val REALESRGAN_MODEL_SIZE_BYTES = 4_870_000L
         
         const val REQUIRED_FREE_SPACE = 1_000_000_000L // 1GB
     }

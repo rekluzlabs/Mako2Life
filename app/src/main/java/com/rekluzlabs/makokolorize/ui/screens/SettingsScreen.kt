@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -42,6 +43,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import com.rekluzlabs.makokolorize.data.model.ModelRepository
 import com.rekluzlabs.makokolorize.data.settings.SettingsRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -158,7 +167,72 @@ fun SettingsScreen(
                 placeholder = { Text("0") }
             )
 
+            // AI Models Status
+            SettingSectionHeader("AI Models Status")
+            val repo = remember { ModelRepository(context) }
+            
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ModelStatusItem(
+                    name = "DDColor",
+                    isDownloaded = repo.isModelDownloaded(),
+                    path = repo.getModelPath()
+                )
+                ModelStatusItem(
+                    name = "SCUNet",
+                    isDownloaded = repo.isScunetModelDownloaded(),
+                    path = repo.getScunetModelPath()
+                )
+                ModelStatusItem(
+                    name = "CodeFormer",
+                    isDownloaded = repo.isCodeformerModelDownloaded(),
+                    path = repo.getCodeformerModelPath()
+                )
+                ModelStatusItem(
+                    name = "Real-ESRGAN",
+                    isDownloaded = repo.isRealEsrganDownloaded(),
+                    path = repo.getRealEsrganPath()
+                )
+            }
+
             Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
+
+@Composable
+private fun ModelStatusItem(
+    name: String,
+    isDownloaded: Boolean,
+    path: String
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .padding(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = if (isDownloaded) Icons.Default.CheckCircle else Icons.Default.Error,
+                contentDescription = null,
+                tint = if (isDownloaded) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = name,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = path,
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 12.sp
+                )
+            }
         }
     }
 }

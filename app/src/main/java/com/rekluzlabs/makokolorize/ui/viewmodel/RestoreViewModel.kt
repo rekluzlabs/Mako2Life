@@ -112,7 +112,7 @@ class RestoreViewModel(
                     try {
                         colorizeUseCase.execute(
                             bitmap,
-                            { progress -> _state.update { it.copy(progress = progress) } },
+                            { progress, _ -> _state.update { it.copy(progress = progress) } },
                             config
                         ).onSuccess { colorizedBitmap ->
                             imageRepository.saveProcessedBitmap(colorizedBitmap)

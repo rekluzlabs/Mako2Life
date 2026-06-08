@@ -49,6 +49,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.runtime.DisposableEffect
 import coil.compose.AsyncImage
 import com.rekluzlabs.makokolorize.data.image.ImageRepository
 import com.rekluzlabs.makokolorize.domain.ColorizeUseCase
@@ -82,6 +84,17 @@ fun RestoreRoute(
         ) as RestoreViewModel
     }
     val state by viewModel.state.collectAsState()
+
+    // Keep screen awake during processing
+    val currentView = LocalView.current
+    DisposableEffect(state.isProcessing) {
+        if (state.isProcessing) {
+            currentView.keepScreenOn = true
+        }
+        onDispose {
+            currentView.keepScreenOn = false
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.effects.collect { effect ->
@@ -293,8 +306,8 @@ private fun ProcessingOverlay(
     val steps = remember(config) {
         listOf(
             ModelStep("SCUNet", "Denoise", config.denoisingEnabled),
-            ModelStep("DDColor", "Colorize", config.colorizeEnabled),
             ModelStep("CodeFormer", "Face Restore", config.faceRestoreEnabled),
+            ModelStep("DDColor", "Colorize", config.colorizeEnabled),
             ModelStep("RealESRGAN", "Upscale", config.upscalingEnabled)
         )
     }
@@ -323,7 +336,7 @@ private fun ProcessingOverlay(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Restoring your photo\u2026",
+                    text = "Restoring your photo\nplease be patient\u2026",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -400,20 +413,41 @@ private fun ProcessingOverlay(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                )
+                if (progress >= 0f) {
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                    )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
 
-                Text(
-                    text = "${(progress * 100).toInt()}%",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                    Text(
+                        text = "${(progress * 100).toInt()}%",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    // Thermal warning state
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(32.dp),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Device is Overheating",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        text = "Pausing to let your phone cool down...",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 

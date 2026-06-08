@@ -9,10 +9,10 @@ android {
 
     defaultConfig {
         applicationId = "com.rekluzlabs.makokolorize"
-        minSdk = 28
+        minSdk = 31
         targetSdk = 37
-        versionCode = 26060601
-        versionName = "1.1.4"
+        versionCode = 26060701
+        versionName = "1.1.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -53,12 +53,14 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.exifinterface)
     implementation(libs.io.coil.compose)
     implementation(libs.com.squareup.okhttp3.okhttp)
     implementation(libs.com.microsoft.onnxruntime.android)
     implementation(libs.org.jetbrains.kotlinx.coroutines.android)
     implementation(libs.lottie.compose)
+    implementation(libs.mlkit.face.detection)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

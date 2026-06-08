@@ -38,6 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.runtime.DisposableEffect
 import com.rekluzlabs.makokolorize.R
 import com.rekluzlabs.makokolorize.data.image.ImageRepository
 import com.rekluzlabs.makokolorize.domain.ColorizeUseCase
@@ -45,6 +47,7 @@ import com.rekluzlabs.makokolorize.domain.RunConfig
 import com.rekluzlabs.makokolorize.ui.components.AppProgressIndicator
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import android.util.Log
 
 @Composable
@@ -61,10 +64,22 @@ fun MainScreen(
     var loadingBitmap by remember { mutableStateOf(true) }
     var processing by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
+    var status by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var job by remember { mutableStateOf<Job?>(null) }
     var lastConfig by remember { mutableStateOf(RunConfig()) }
     var showPreflightSheet by remember { mutableStateOf(false) }
+
+    // Keep screen awake during processing
+    val currentView = LocalView.current
+    DisposableEffect(processing) {
+        if (processing) {
+            currentView.keepScreenOn = true
+        }
+        onDispose {
+            currentView.keepScreenOn = false
+        }
+    }
 
     LaunchedEffect(imageUri) {
         loadingBitmap = true
@@ -132,7 +147,10 @@ fun MainScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         if (processing) {
-            AppProgressIndicator(progress = progress)
+            AppProgressIndicator(
+                progress = progress,
+                status = status
+            )
             Spacer(modifier = Modifier.height(12.dp))
             OutlinedButton(onClick = {
                 job?.cancel()
@@ -169,18 +187,29 @@ fun MainScreen(
                 val bm = bitmap ?: return@PreflightSheet
                 processing = true
                 progress = 0f
+                status = "Starting..."
                 error = null
                 job = scope.launch {
                     val useCase = ColorizeUseCase(context)
-                    useCase.execute(bm, { p -> progress = p }, config)
-                        .onSuccess { result ->
+                    val result = withTimeoutOrNull(180_000) { // 3 minute timeout
+                        useCase.execute(bm, { p, s -> 
+                            progress = p
+                            status = s
+                        }, config)
+                    }
+
+                    if (result != null) {
+                        result.onSuccess {
                             processing = false
                             onResultReady(config)
-                        }
-                        .onFailure { e ->
+                        }.onFailure { e ->
                             error = e.message
                             processing = false
                         }
+                    } else {
+                        error = "Processing timed out. The image might be too large or the device is too slow."
+                        processing = false
+                    }
                 }
             }
         )

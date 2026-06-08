@@ -10,10 +10,25 @@ class ScunetRunner(modelPath: String) : AutoCloseable {
         bitmap: Bitmap,
         strength: Float,
         advancedNoiseRemoval: Boolean,
+        fastMode: Boolean = false,
+        downsample: Boolean = false,
         onProgress: (Float) -> Unit = {}
     ): Bitmap {
+        // Set tile config based on fastMode
+        if (fastMode) {
+            DenoiseRunner.setTileConfig(512, 32)
+        } else {
+            DenoiseRunner.setTileConfig(256, 16)
+        }
+
+        val input = if (downsample) {
+            Bitmap.createScaledBitmap(bitmap, bitmap.width / 2, bitmap.height / 2, true)
+        } else {
+            bitmap
+        }
+
         val hasSecondPass = advancedNoiseRemoval
-        var result = runSinglePass(bitmap, strength) { p ->
+        var result = runSinglePass(input, strength) { p ->
             onProgress(p * (if (hasSecondPass) 0.5f else 1f))
         }
         if (hasSecondPass) {
@@ -21,7 +36,15 @@ class ScunetRunner(modelPath: String) : AutoCloseable {
                 onProgress(0.5f + p * 0.5f)
             }
         }
-        return result
+
+        return if (downsample) {
+            val upscaled = Bitmap.createScaledBitmap(result, bitmap.width, bitmap.height, true)
+            result.recycle()
+            if (input != bitmap) input.recycle()
+            upscaled
+        } else {
+            result
+        }
     }
 
     private fun runSinglePass(

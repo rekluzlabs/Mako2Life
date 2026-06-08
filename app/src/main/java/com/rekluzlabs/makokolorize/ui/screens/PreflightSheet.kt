@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -56,7 +57,14 @@ fun PreflightSheet(
     var upscalingEnabled by remember { mutableStateOf(initialConfig.upscalingEnabled) }
     var faceRestoreEnabled by remember { mutableStateOf(initialConfig.faceRestoreEnabled) }
     var denoisingEnabled by remember { mutableStateOf(initialConfig.denoisingEnabled) }
-    var codeFormerFidelity by remember { mutableFloatStateOf(0.7f) }
+    // Fix: was hardcoded to 0.7f, ignoring initialConfig on every sheet open
+    var codeFormerFidelity by remember { mutableFloatStateOf(initialConfig.codeFormerFidelity) }
+    
+    // ML Kit Settings
+    var mlKitAccurateMode by remember { mutableStateOf(initialConfig.mlKitAccurateMode) }
+    var mlKitMinFaceSize by remember { mutableFloatStateOf(initialConfig.mlKitMinFaceSize) }
+    var detectionConfidence by remember { mutableFloatStateOf(initialConfig.detectionConfidence) }
+
     var scunetStrength by remember { mutableFloatStateOf(initialConfig.scunetStrength) }
     var scunetAdvancedNoiseRemoval by remember { mutableStateOf(initialConfig.scunetAdvancedNoiseRemoval) }
     var showSizeInfo by remember { mutableStateOf(false) }
@@ -83,9 +91,8 @@ fun PreflightSheet(
 
             // DDColor input size
             val sizeLabel = when (ddcolorInputSize) {
-                512 -> "Fast"
-                768 -> "Balanced"
-                1024 -> "Detailed"
+                256  -> "Fast"
+                512  -> "Detailed"
                 else -> "$ddcolorInputSize"
             }
             Row(
@@ -116,7 +123,10 @@ fun PreflightSheet(
                     onDismissRequest = { showSizeInfo = false },
                     title = { Text("DDColor Input Size") },
                     text = {
-                        Text("Before colorizing your photo, the AI resizes it to this resolution internally for analysis. A higher value means the AI sees finer detail when choosing colors, which improves accuracy for portraits and complex images. A lower value processes faster and uses less memory. Your final image is always saved at full resolution.\n\n⚠️ Higher values require significantly more memory and processing power. On older or lower-end devices, choosing 1024 may cause slower performance or the app to crash. If you experience issues, try a lower value.")
+                        Text("Before colorizing your photo, the AI resizes it to this resolution internally for analysis.\n\n" +
+                             "• 128px: Ultra Fast, recommended for older devices.\n" +
+                             "• 256px: Fast, the balanced default.\n" +
+                             "• 512px: Detailed, best for complex scenes.")
                     },
                     confirmButton = {
                         TextButton(onClick = { showSizeInfo = false }) {
@@ -126,11 +136,11 @@ fun PreflightSheet(
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(512, 768, 1024).forEach { size ->
+                listOf(128, 256, 512).forEach { size ->
                     val chipLabel = when (size) {
-                        512 -> "Fast"
-                        768 -> "Balanced"
-                        1024 -> "Detailed"
+                        128  -> "Ultra"
+                        256  -> "Fast"
+                        512  -> "Detail"
                         else -> "$size"
                     }
                     FilterChip(
@@ -141,7 +151,7 @@ fun PreflightSheet(
                 }
             }
 
-            // Color vibrancy (moved from MainScreen)
+            // Color vibrancy
             Text(
                 text = "Color Vibrancy: ${"%.1f".format(vibrancy)}x",
                 fontSize = 14.sp,
@@ -238,7 +248,7 @@ fun PreflightSheet(
                 FilterChip(
                     selected = upscalingEnabled,
                     onClick = { upscalingEnabled = !upscalingEnabled },
-                    enabled = false, // Keep false if RealESRGAN is not yet implemented
+                    enabled = true,
                     label = { Text("Upscaling") }
                 )
                 FilterChip(
@@ -260,38 +270,130 @@ fun PreflightSheet(
                     )
                 )
             }
+            // Fix: label now matches the confirmed pipeline order
             Text(
-                text = "Pipeline: DDColor → Face Restore → SCUNet",
+                text = "Pipeline: DDColor → RealESRGAN → Face Restore → SCUNet",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
 
             // CodeFormer fidelity
             Text(
-                text = "CodeFormer Fidelity: ${"%.2f".format(codeFormerFidelity)}",
+                text = "Face Enhancement (CodeFormer + ML Kit)",
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                    alpha = if (faceRestoreEnabled) 1f else 0.4f
-                )
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.alpha(if (faceRestoreEnabled) 1f else 0.4f)
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("0.0", fontSize = 12.sp, modifier = Modifier.width(24.dp))
-                Slider(
-                    value = codeFormerFidelity,
-                    onValueChange = { codeFormerFidelity = it },
-                    enabled = faceRestoreEnabled,
-                    valueRange = 0f..1f,
-                    steps = 99,
-                    modifier = Modifier.weight(1f)
+
+            Column(
+                modifier = Modifier.alpha(if (faceRestoreEnabled) 1f else 0.4f),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "CodeFormer Fidelity: ${"%.2f".format(codeFormerFidelity)}",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Text("1.0", fontSize = 12.sp, modifier = Modifier.width(24.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("0.0", fontSize = 12.sp, modifier = Modifier.width(24.dp))
+                    Slider(
+                        value = codeFormerFidelity,
+                        onValueChange = { codeFormerFidelity = it },
+                        enabled = faceRestoreEnabled,
+                        valueRange = 0f..1f,
+                        steps = 99,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text("1.0", fontSize = 12.sp, modifier = Modifier.width(24.dp))
+                }
+
+                // Accurate Mode
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "High Accuracy Mode",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "Slower but finds smaller or partially hidden faces.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                    Switch(
+                        checked = mlKitAccurateMode,
+                        onCheckedChange = { if (faceRestoreEnabled) mlKitAccurateMode = it },
+                        enabled = faceRestoreEnabled
+                    )
+                }
+
+                // Min Face Size
+                val sensitivity = (0.5f - mlKitMinFaceSize) / 0.49f
+                Text(
+                    text = "Detection Sensitivity: ${(sensitivity * 100).toInt()}%",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "Higher sensitivity finds tiny faces in the distance.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Low", fontSize = 12.sp, modifier = Modifier.width(32.dp))
+                    Slider(
+                        value = sensitivity,
+                        onValueChange = { mlKitMinFaceSize = 0.5f - (it * 0.49f) },
+                        enabled = faceRestoreEnabled,
+                        valueRange = 0f..1f,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text("High", fontSize = 12.sp, modifier = Modifier.width(32.dp))
+                }
+
+                // Detection Confidence
+                Text(
+                    text = "Filter Confidence: ${"%.0f".format(detectionConfidence * 100)}%",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "Increase if the app detects faces where there are none.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("0%", fontSize = 12.sp, modifier = Modifier.width(24.dp))
+                    Slider(
+                        value = detectionConfidence,
+                        onValueChange = { detectionConfidence = it },
+                        enabled = faceRestoreEnabled,
+                        valueRange = 0f..1f,
+                        steps = 19,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text("100%", fontSize = 12.sp, modifier = Modifier.width(36.dp))
+                }
             }
 
             // Estimated time hint
-            val estimate = "~${ddcolorInputSize / 512 * 30}s on this device"
+            val baseTime = (ddcolorInputSize / 512.0) * 15.0
+            val upscaleTime = if (upscalingEnabled) 25.0 else 0.0
+            val faceTime = if (faceRestoreEnabled) 40.0 else 0.0
+            val scunetTime = if (denoisingEnabled) (scunetStrength * 20.0 * (if (scunetAdvancedNoiseRemoval) 2.0 else 1.0)) else 0.0
+            val totalEstimate = (baseTime + upscaleTime + faceTime + scunetTime).toInt()
+
             Text(
-                text = estimate,
+                text = "~${totalEstimate}s on this device",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
@@ -320,6 +422,9 @@ fun PreflightSheet(
                                 faceRestoreEnabled = faceRestoreEnabled,
                                 denoisingEnabled = denoisingEnabled,
                                 codeFormerFidelity = codeFormerFidelity,
+                                mlKitAccurateMode = mlKitAccurateMode,
+                                mlKitMinFaceSize = mlKitMinFaceSize,
+                                detectionConfidence = detectionConfidence,
                                 scunetStrength = scunetStrength,
                                 scunetAdvancedNoiseRemoval = scunetAdvancedNoiseRemoval
                             )
@@ -335,5 +440,3 @@ fun PreflightSheet(
         }
     }
 }
-
-

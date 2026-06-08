@@ -4,8 +4,16 @@ import android.graphics.Bitmap
 
 object DenoiseRunner {
 
-    private const val TILE_SIZE = 256
-    private const val TILE_OVERLAP = 16
+    private var currentTileSize = 256
+    private var currentOverlap = 16
+
+    fun setTileConfig(size: Int, overlap: Int) {
+        currentTileSize = size
+        currentOverlap = overlap
+    }
+
+    fun getTileSize() = currentTileSize
+    fun getTileOverlap() = currentOverlap
 
     fun bitmapToFloatChw(bitmap: Bitmap): FloatArray {
         val w = bitmap.width
@@ -146,7 +154,4 @@ object DenoiseRunner {
         val d = (pos - center) / sigma
         return Math.exp(-0.5 * d * d).toFloat()
     }
-
-    fun getTileSize() = TILE_SIZE
-    fun getTileOverlap() = TILE_OVERLAP
 }
