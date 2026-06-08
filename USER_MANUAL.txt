@@ -1,7 +1,7 @@
-Makokolorize User Manual
+Mako2Life User Manual
 ========================
 
-Welcome to Makokolorize, your all-in-one AI-powered photo restoration and colorization suite. This guide will help you transform your old, blurry, or black-and-white photos into vibrant, high-definition memories.
+Welcome to Mako2Life, your all-in-one AI-powered photo restoration and colorization suite. This guide will help you transform your old, blurry, or black-and-white photos into vibrant, high-definition memories.
 
 ---
 
@@ -66,5 +66,5 @@ Tap the "MAKO Edit" button to manually fine-tune the AI's work:
 - Crop: Reframe your photo by dragging the corners of the interactive box.
 
 ---
-Thank you for using Makokolorize!
+Thank you for using Mako2Life!
 Relive your memories in high definition.
