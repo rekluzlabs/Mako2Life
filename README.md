@@ -174,6 +174,7 @@ Relive your memories in high definition.
 - Completely ambiguous images (very rare)
 - Heavily degraded/extremely low contrast originals
 - Very fine details (limited by ONNX model size)
+- grayscale images not converting to color with DDcolor alone (needs to run with 2 AI models to work)
 
 ## Performance
 
