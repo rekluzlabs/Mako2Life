@@ -8,6 +8,7 @@ Transform black & white photographs into stunning color images using advanced de
 
 Mako2Life leverages the cutting-edge AI models to automatically predict realistic colors for black and white images and to repair and upscale images Whether you're restoring a family heirloom photo, a vintage postcard, or a historical archive image, makokolorize delivers professional-quality photo restoration without requiring internet connectivity or cloud processing.
 
+## These are test runs of earlier versions of the app before the name change.
 <img width="300" height="640" alt="image2" src="https://github.com/user-attachments/assets/5eb4ee69-1346-4106-8819-bd63d0de5703" />
 <img width="300" height="640" alt="image3" src="https://github.com/user-attachments/assets/eaf8f353-9a37-4d06-870d-8a94b239431b" />
 <img width="300" height="640" alt="image1" src="https://github.com/user-attachments/assets/c86b0dda-1886-4e5b-8890-7fe7b8cb1b12" />
