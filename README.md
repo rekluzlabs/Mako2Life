@@ -1,6 +1,6 @@
 # Mako2Life- AI Image Colorization
 
-Transform black & white photographs into stunning color images using advanced deep learning. makokolorize brings old memories to life with intelligent AI-powered image processing that runs entirely on your Android device.
+Transform black & white photographs into stunning color images using advanced deep learning. Mako2Life offers to bring old memories to life with intelligent AI-powered image processing that runs entirely on your Android device.
 
 ## Note: The site for the AI Models are now being hosted on Hugging Face site. All new builds will use this link going forward starting June 6, 2026
 
