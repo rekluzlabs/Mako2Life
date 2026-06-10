@@ -16,7 +16,7 @@ Mako2Life leverages the cutting-edge AI models to automatically predict realisti
 
 ## Key Features
 
- **State-of-the-Art AI Colorization**
+ **AI Models used for Photo Enhancement**
 - Uses DDColor model (ICCV 2023) for photo-realistic results
 - Codeformer to enhance faces
 - SCUNet to remove grain and noise from images
