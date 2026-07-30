@@ -1,15 +1,45 @@
+# Android / Gradle builds & caches
+.gradle/
+build/
+app/build/
+.artifacts/
+.externalNativeBuild/
+.cxx/
+captures/
+.kotlin/
+
+# IDE files (Android Studio / IntelliJ / VS Code)
+.idea/
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+.vscode/
+
+# Compiled classes & Logs
+*.class
+*.log
+
+# Build artifacts, packages & binaries
+*.apk
+*.aab
+*.aar
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Local configurations & secrets (CRITICAL)
 local.properties
+keystore.properties
+*.jks
+*.keystore
+*.pepk
+.env
+.env.*
+
+# OS & crash logs
+.DS_Store
+Thumbs.db
+hs_err_pid*
+replay_pid*
