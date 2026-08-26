@@ -1,6 +1,6 @@
 # Mako2Life- AI Image Colorization
 
-# Please note: This app is no longer being developed. The app has been redesigned and is now live on the Google Playstore. It is still free to download and does not contain any ads or IAP nor subscriptions. ([Download link](https://play.google.com/store/apps/details?id=com.rekluzlabs.makorevive ))
+# Please note: This app is no longer being developed. The app has been redesigned and is now called MakoRevive and is live on the Google Playstore. It is still free to download and does not contain any ads or IAP nor subscriptions. ([Download link](https://play.google.com/store/apps/details?id=com.rekluzlabs.makorevive ))
 
 Transform black & white photographs into stunning color images using advanced deep learning. Mako2Life offers to bring old memories to life with intelligent AI-powered image processing that runs entirely on your Android device.
 
